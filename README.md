@@ -1,12 +1,11 @@
 # 🛡️ GenAC — AntiCheat for Minecraft 1.16.5
 
 GenAC is an anti-cheat plugin for Minecraft 1.16.5 servers.  
-It detects and prevents common cheating methods with configurable checks and punishments.
-
+Soon 1.21.4
 ---
 
-[![💾 Download](https://img.shields.io/badge/💾_Download-GenAC.jar-brightgreen?style=for-the-badge)]([#installation](https://github.com/BalanceFiar/GenAC/releases/latest))
-[![⚙️ Config](https://img.shields.io/badge/⚙️_Config-View-blue?style=for-the-badge)]([#configuration](https://github.com/BalanceFiar/GenAC/blob/master/src/main/resources/config.yml))
+[![💾 Download](https://img.shields.io/badge/💾_Download-GenAC.jar-brightgreen?style=for-the-badge)](https://github.com/BalanceFiar/GenAC/releases/latest)
+[![⚙️ Config](https://img.shields.io/badge/⚙️_Config-View-blue?style=for-the-badge)](https://github.com/BalanceFiar/GenAC/blob/master/src/main/resources/config.yml)
 [![💖 Donate](https://img.shields.io/badge/💖_Donate-Support-orange?style=for-the-badge)](https://www.donationalerts.com/r/balancefiar)
 
 ---
@@ -60,5 +59,3 @@ checks:
       ban:
         enabled: true
         threshold: 10
-
-...
