@@ -8,6 +8,17 @@ alerts:
   webhook-url: ""
 
 checks:
+  baritone:
+    enabled: true
+    experimental: true
+    punishment:
+      kick:
+        enabled: false
+        threshold: 5
+      ban:
+        enabled: false
+        threshold: 10
+        duration: 1800
   invmove:
     enabled: true
     experimental: false
@@ -71,4 +82,6 @@ checks:
 
 punishments:
   kick-message: "§cYou have been kicked for suspicious activity: {reason} ({violations} violations)"
-  ban-command: "tempban {player} {duration}s Suspicious activity: {reason} ({violations} violations)"
+  ban-command: "tempban {player} {duration} Suspicious activity: {reason} ({violations} violations)"
+
+functions:

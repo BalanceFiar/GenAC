@@ -2,6 +2,7 @@ package balance.genac.manager;
 
 import balance.genac.GenAC;
 import balance.genac.check.Check;
+import balance.genac.check.impl.baritone.Baritone;
 import balance.genac.check.impl.combat.hit.Reach;
 import balance.genac.check.impl.combat.killaura.KillAuraRotationA;
 import balance.genac.check.impl.combat.killaura.KillAuraRotationB;
@@ -25,6 +26,7 @@ public class CheckManager {
 
     public void loadChecks() {
         plugin.getLogger().info("Loading checks...");
+        registerCheck(new Baritone(plugin));
         registerCheck(new Reach(plugin));
         registerCheck(new InvMove(plugin));
         registerCheck(new WallHit(plugin));

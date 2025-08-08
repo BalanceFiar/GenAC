@@ -4,6 +4,7 @@ import balance.genac.command.GenACCommand;
 import balance.genac.manager.AlertManager;
 import balance.genac.manager.CheckManager;
 import balance.genac.manager.ConfigManager;
+import balance.genac.manager.FunctionsManager;
 import balance.genac.manager.PunishmentManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
@@ -16,6 +17,7 @@ public final class GenAC extends JavaPlugin {
     private AlertManager alertManager;
     private CheckManager checkManager;
     private PunishmentManager punishmentManager;
+    private FunctionsManager functionsManager;
 
     @Override
     public void onEnable() {
@@ -27,9 +29,11 @@ public final class GenAC extends JavaPlugin {
         this.alertManager = new AlertManager(this);
         this.punishmentManager = new PunishmentManager(this);
         this.checkManager = new CheckManager(this);
+        this.functionsManager = new FunctionsManager(this);
 
         configManager.loadConfig();
         checkManager.loadChecks();
+        functionsManager.loadFunctions();
 
         getCommand("genac").setExecutor(new GenACCommand(this));
         getCommand("genac").setTabCompleter(new GenACCommand(this));
@@ -43,6 +47,9 @@ public final class GenAC extends JavaPlugin {
 
         if (checkManager != null) {
             checkManager.unloadChecks();
+        }
+        if (functionsManager != null) {
+            functionsManager.unloadFunctions();
         }
     }
 
@@ -64,5 +71,9 @@ public final class GenAC extends JavaPlugin {
 
     public PunishmentManager getPunishmentManager() {
         return punishmentManager;
+    }
+
+    public FunctionsManager getFunctionsManager() {
+        return functionsManager;
     }
 }
