@@ -5,8 +5,8 @@ It detects and prevents common cheating methods with configurable checks and pun
 
 ---
 
-[![💾 Download](https://img.shields.io/badge/💾_Download-GenAC.jar-brightgreen?style=for-the-badge)](#installation)
-[![⚙️ Config](https://img.shields.io/badge/⚙️_Config-View-blue?style=for-the-badge)](#configuration)
+[![💾 Download](https://img.shields.io/badge/💾_Download-GenAC.jar-brightgreen?style=for-the-badge)]([#installation](https://github.com/BalanceFiar/GenAC/releases/latest))
+[![⚙️ Config](https://img.shields.io/badge/⚙️_Config-View-blue?style=for-the-badge)]([#configuration](https://github.com/BalanceFiar/GenAC/blob/master/src/main/resources/config.yml))
 [![💖 Donate](https://img.shields.io/badge/💖_Donate-Support-orange?style=for-the-badge)](https://www.donationalerts.com/r/balancefiar)
 
 ---
