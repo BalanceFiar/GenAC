@@ -302,7 +302,7 @@ public class KillAuraRotationB extends Check {
         Alert alert = new Alert(
                 p,
                 "KillAuraRotationB",
-                AlertType.EXPERIMENTAL,
+                AlertType.HIGH,
                 getViolationLevel(p),
                 reason + " | " + details
         );

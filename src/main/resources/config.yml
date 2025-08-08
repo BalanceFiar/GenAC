@@ -17,11 +17,15 @@ checks:
   killaurarotationa:
     enabled: true
     max-violations: 10
-    experimental: true
+    experimental: false
   killaurarotationb:
     enabled: true
     max-violations: 8
     experimental: true
+  invmode:
+    enabled: true
+    max-violations: 5
+    experimental: false
 
 
 punishments:

@@ -23,37 +23,26 @@ import java.util.stream.Collectors;
 @CheckInfo(name = "KillAuraRotationA", type = CheckType.COMBAT, description = "Universal rotation aura detector with anti-false gating")
 public class KillAuraRotationA extends Check {
 
-    // Трекинг ротаций + боевой контекст
     private final Map<UUID, RotationTracker> rotationTrackers = new HashMap<>();
     private final Map<UUID, Long> lastAttackTime = new HashMap<>();
     private final Map<UUID, Integer> recentAttacks = new HashMap<>();
-
-    // Aim-snap окна и последняя жертва
     private final Map<UUID, AimWindow> aimWindows = new HashMap<>();
     private final Map<UUID, UUID> lastVictimId = new HashMap<>();
     private final Map<UUID, World> lastVictimWorld = new HashMap<>();
-
-    // Профиль игрока вне боя (baseline)
     private final Map<UUID, Baseline> baselines = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastBaselineUpdate = new HashMap<>();
-
-    // Ритм атак
     private final Map<UUID, Deque<Long>> attackTimes = new HashMap<>();
-
-    // Скоинг и антиспам
     private final Map<UUID, Double> suspicionScore = new HashMap<>();
     private final Map<UUID, Long> lastFlagTime = new HashMap<>();
     private final Map<UUID, Long> lastAnalysisTime = new HashMap<>();
     private final Map<UUID, GcdPersist> gcdPersist = new HashMap<>();
 
-    // Окна/пороги
     private static final long ATTACK_WINDOW_MS = 2500L;
     private static final int MIN_ROT_SAMPLES = 12;
     private static final float MIN_DELTA_FOR_ANALYSIS = 0.25f;
     private static final long ANALYSIS_INTERVAL_MS = 200;
 
-    // Пороговые значения (универсальные)
-    private static final double GCD_LOCK_THRESHOLD = 0.90; // ужесточили
+    private static final double GCD_LOCK_THRESHOLD = 0.90;
     private static final int GCD_PERSIST_REQ = 3;
     private static final double SINE_INDEX_THRESHOLD = 0.52;
     private static final double CIRCULARITY_THRESHOLD = 0.58;
@@ -64,16 +53,17 @@ public class KillAuraRotationA extends Check {
     private static final double AUTOCORR_THRESHOLD = 0.52;
     private static final double JERK_ZERO_SHARE_THRESHOLD = 0.70;
 
-    // Aim-snap
     private static final long SNAP_WINDOW_MS = 600L;
     private static final int SNAP_MIN_SAMPLES = 6;
     private static final double SNAP_GAIN = 1.2;
 
-    // Скоринг
     private static final int FLAG_COOLDOWN_MS = 3500;
     private static final double SCORE_DECAY_PER_TICK = 0.20;
     private static final double SCORE_TO_FLAG = 6.0;
     private static final double SCORE_CLAMP_MAX = 20.0;
+
+    private static final int BATCH_MIN_HITS = 10;
+    private static final long BATCH_WINDOW_MAX_MS = 0;
 
     public KillAuraRotationA(GenAC plugin) {
         super(plugin);
@@ -82,101 +72,87 @@ public class KillAuraRotationA extends Check {
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         if (!isEnabled()) return;
-
         Player player = event.getPlayer();
         if (player == null || player.isDead() || player.hasPermission("genac.bypass")) return;
 
         UUID uuid = player.getUniqueId();
         RotationTracker tracker = rotationTrackers.computeIfAbsent(uuid, k -> new RotationTracker());
-        tracker.addRotation(event.getFrom(), event.getTo());
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        if (to == null) return;
+        tracker.addRotation(from, to);
 
-        // Спад скора
         suspicionScore.put(uuid, Math.max(0.0, suspicionScore.getOrDefault(uuid, 0.0) - SCORE_DECAY_PER_TICK));
-
-        // Обновление baseline вне боя (5с без ударов)
         updateBaselineIfIdle(uuid, tracker);
 
-        // Анализ раз в ~200мс, только рядом с боями
         if (!isPlayerAttacking(uuid)) {
-            // Обновляем aim-window, если было недавно
-            processAimWindowOnMove(uuid, player, event.getTo());
+            processAimWindowOnMove(uuid, player, to);
             return;
         }
         long now = System.currentTimeMillis();
         long lastA = lastAnalysisTime.getOrDefault(uuid, 0L);
         if (now - lastA < ANALYSIS_INTERVAL_MS) {
-            // но aim-снап окно продолжаем
-            processAimWindowOnMove(uuid, player, event.getTo());
+            processAimWindowOnMove(uuid, player, to);
             return;
         }
         lastAnalysisTime.put(uuid, now);
 
         List<RotationData> window = tracker.getRecentRotations(24);
         if (window.size() < MIN_ROT_SAMPLES) {
-            processAimWindowOnMove(uuid, player, event.getTo());
+            processAimWindowOnMove(uuid, player, to);
             return;
         }
         List<RotationData> sig = window.stream()
                 .filter(r -> r.getTotalDelta() >= MIN_DELTA_FOR_ANALYSIS)
                 .collect(Collectors.toList());
         if (sig.size() < MIN_ROT_SAMPLES - 2) {
-            processAimWindowOnMove(uuid, player, event.getTo());
+            processAimWindowOnMove(uuid, player, to);
             return;
         }
 
         Baseline base = baselines.get(uuid);
         Feature f = computeFeatures(sig);
 
-        // Персистентность GCD (по окнам)
         boolean gcdStrong = updateAndCheckGcdPersist(uuid, f, base);
-
-        // Aim-snap бонус (считаем внутри окна после набора сэмплов)
         double snapAdd = applySnapIfReady(uuid);
         double frameAdd = 0.0;
         int strongGroups = 0;
 
-        // Группа A: осцилляции/эллипс/частота/автокорреляция
         boolean A = (f.sineMax >= SINE_INDEX_THRESHOLD)
                 || (f.circularity >= CIRCULARITY_THRESHOLD)
                 || (f.specMax >= SPECTRAL_PEAK_THRESHOLD)
                 || (f.autocorr >= AUTOCORR_THRESHOLD);
 
-        // Группа B: константная скорость/роботичность/линейность/нет микро/низкий jerk
         boolean B = (f.constSpeed.constRatio >= CONST_SPEED_THRESHOLD && f.constSpeed.samples >= 6)
                 || (f.robot.samples >= 4 && f.robot.stdDev <= ROBOTIC_STD_MAX && f.robot.mean >= ROBOTIC_MEAN_MIN)
                 || (f.linear >= 0.45)
                 || (f.noMicro)
                 || (f.jerkShare >= JERK_ZERO_SHARE_THRESHOLD);
 
-        // Группа C: Aim-snap
         boolean C = snapAdd > 0.0;
 
         if (A) strongGroups++;
         if (B) strongGroups++;
         if (C) strongGroups++;
 
-        // GCD сам по себе = 0. Он даёт вес только с A/B/C + персистентностью и отличием от baseline.
         boolean useGcd = gcdStrong;
 
-        // Комбинационная логика:
-        // - Нужны минимум 2 группы из A/B/C
-        // - Если есть устойчивый GCD и он отличается от baseline — добавляем вес
         if (strongGroups >= 2) {
-            // Базовый вклад от комбинации A+B/C
             frameAdd += 1.8;
             if (A && B) frameAdd += 0.6;
-            if (C) frameAdd += 0.6; // сильнее, если есть снап по цели
-            if (useGcd) frameAdd += 0.9; // устойчивый GCD сверху
+            if (C) frameAdd += 0.6;
+            if (useGcd) frameAdd += 0.9;
         } else {
-            // Если нет комбинации, но есть снап + GCD-персист — слабый вклад
             if (C && useGcd) frameAdd += 0.8;
         }
 
-        // Сравнение с baseline: если в бою сильно хуже, чем в простое — усиливаем
         if (base != null) {
             if (f.noMicro && base.microRatioAvg > 0.20) frameAdd += 0.5;
             if (f.jerkShare >= JERK_ZERO_SHARE_THRESHOLD && base.jerkZeroShareAvg < 0.45) frameAdd += 0.4;
-            if (useGcd && base.gcdYawStep > 0 && Math.abs(f.qBestYaw.step - base.gcdYawStep) > 0.01) frameAdd += 0.3;
+            if (useGcd) {
+                double baseStep = "Yaw".equals(f.qBestAxis) ? base.gcdYawStep : base.gcdPitchStep;
+                if (baseStep > 0 && Math.abs(f.qBest.step - baseStep) > 0.01) frameAdd += 0.3;
+            }
         }
 
         if (frameAdd > 0 || snapAdd > 0) {
@@ -184,9 +160,8 @@ public class KillAuraRotationA extends Check {
             suspicionScore.put(uuid, newScore);
         }
 
-        // Флаг
         double score = suspicionScore.getOrDefault(uuid, 0.0);
-        if (score >= SCORE_TO_FLAG && recentAttacks.getOrDefault(uuid, 0) >= 2) {
+        if (score >= SCORE_TO_FLAG && recentAttacks.getOrDefault(uuid, 0) >= 2 && isBatchReady(uuid)) {
             Long lastFlag = lastFlagTime.get(uuid);
             if (lastFlag == null || now - lastFlag >= FLAG_COOLDOWN_MS) {
                 float avgRot = (float) sig.stream().mapToDouble(RotationData::getTotalDelta).average().orElse(0.0);
@@ -200,11 +175,11 @@ public class KillAuraRotationA extends Check {
                         ));
                 lastFlagTime.put(uuid, now);
                 suspicionScore.put(uuid, Math.max(0.0, score - 4.0));
+                resetBatch(uuid);
             }
         }
 
-        // Поддержим aim-window (сбор ошибок прицеливания)
-        processAimWindowOnMove(uuid, player, event.getTo());
+        processAimWindowOnMove(uuid, player, to);
     }
 
     @EventHandler
@@ -217,37 +192,34 @@ public class KillAuraRotationA extends Check {
         lastAttackTime.put(uuid, now);
         recentAttacks.put(uuid, recentAttacks.getOrDefault(uuid, 0) + 1);
 
-        // Ритм атак
         Deque<Long> times = attackTimes.computeIfAbsent(uuid, k -> new ArrayDeque<>());
         times.addLast(now);
-        while (times.size() > 10) times.removeFirst();
+        while (times.size() > BATCH_MIN_HITS) times.removeFirst();
+        if (times.size() >= BATCH_MIN_HITS) {
+            lastAnalysisTime.put(uuid, 0L);
+        }
 
-        // Запомнить жертву для aim-snap
         Entity victim = event.getEntity();
         lastVictimId.put(uuid, victim.getUniqueId());
         lastVictimWorld.put(uuid, victim.getWorld());
 
-        // Открыть aim-window
         AimWindow aw = new AimWindow();
         aw.startTime = now;
         aw.victimId = victim.getUniqueId();
         aw.world = victim.getWorld();
         aimWindows.put(uuid, aw);
 
-        // Спад счетчика атак
         plugin.getServer().getScheduler().runTaskLater(plugin, () ->
                 recentAttacks.put(uuid, Math.max(0, recentAttacks.getOrDefault(uuid, 0) - 1)), 80L);
     }
 
-    // ===================== Baseline =====================
-
     private void updateBaselineIfIdle(UUID uuid, RotationTracker tracker) {
         Long last = lastAttackTime.get(uuid);
         long now = System.currentTimeMillis();
-        if (last != null && now - last < 5000L) return; // не обновляем baseline в бою
+        if (last != null && now - last < 5000L) return;
 
         long lastUpd = lastBaselineUpdate.getOrDefault(uuid, 0L);
-        if (now - lastUpd < 600L) return; // не чаще
+        if (now - lastUpd < 600L) return;
         lastBaselineUpdate.put(uuid, now);
 
         List<RotationData> w = tracker.getRecentRotations(24);
@@ -260,15 +232,12 @@ public class KillAuraRotationA extends Check {
 
         Feature f = computeFeatures(sig);
         Baseline b = baselines.getOrDefault(uuid, new Baseline());
-        // EMA для стабильности
         b.gcdYawStep = ema(b.gcdYawStep, f.qYaw.step, 0.25, b.gcdYawStep == 0 ? 1.0 : 0.25);
         b.gcdYawCov = ema(b.gcdYawCov, f.qYaw.coverage, 0.25, b.gcdYawStep == 0 ? 1.0 : 0.25);
         b.gcdPitchStep = ema(b.gcdPitchStep, f.qPitch.step, 0.25, b.gcdPitchStep == 0 ? 1.0 : 0.25);
         b.gcdPitchCov = ema(b.gcdPitchCov, f.qPitch.coverage, 0.25, b.gcdPitchStep == 0 ? 1.0 : 0.25);
-
         b.microRatioAvg = ema(b.microRatioAvg, f.microRatio, 0.25, b.microRatioAvg == 0 ? 1.0 : 0.25);
         b.jerkZeroShareAvg = ema(b.jerkZeroShareAvg, f.jerkShare, 0.25, b.jerkZeroShareAvg == 0 ? 1.0 : 0.25);
-
         baselines.put(uuid, b);
     }
 
@@ -277,14 +246,18 @@ public class KillAuraRotationA extends Check {
         return prev * (1 - alpha) + val * alpha;
     }
 
-    // ===================== Aim-snap =====================
-
     private static class AimSample {
-        long t; double yawErr; double pitchErr; double err;
+        long t;
+        double yawErr;
+        double pitchErr;
+        double err;
     }
 
     private static class AimWindow {
-        UUID victimId; World world; long startTime; boolean evaluated;
+        UUID victimId;
+        World world;
+        long startTime;
+        boolean evaluated;
         Deque<AimSample> samples = new ArrayDeque<>();
     }
 
@@ -293,18 +266,19 @@ public class KillAuraRotationA extends Check {
         if (aw == null) return;
         long now = System.currentTimeMillis();
         if (now - aw.startTime > SNAP_WINDOW_MS) {
-            // окно истекло
             aimWindows.remove(uuid);
             return;
         }
         if (aw.victimId == null || aw.world == null || player.getWorld() != aw.world) return;
         Entity victim = null;
         for (Entity e : aw.world.getEntities()) {
-            if (e.getUniqueId().equals(aw.victimId)) { victim = e; break; }
+            if (e.getUniqueId().equals(aw.victimId)) {
+                victim = e;
+                break;
+            }
         }
         if (victim == null || victim.isDead()) return;
 
-        // Сэмпл ошибки наведения
         Location eye = player.getEyeLocation();
         Location tgt = victim.getLocation().clone().add(0.0, victim.getHeight() * 0.6, 0.0);
 
@@ -313,7 +287,10 @@ public class KillAuraRotationA extends Check {
         double pitchErr = Math.abs(clamp(yp[1], -89.0, 89.0) - clamp(to.getPitch(), -89.0, 89.0));
 
         AimSample s = new AimSample();
-        s.t = now; s.yawErr = yawErr; s.pitchErr = pitchErr; s.err = Math.hypot(yawErr, pitchErr);
+        s.t = now;
+        s.yawErr = yawErr;
+        s.pitchErr = pitchErr;
+        s.err = Math.hypot(yawErr, pitchErr);
 
         aw.samples.addLast(s);
         while (aw.samples.size() > 14) aw.samples.removeFirst();
@@ -324,13 +301,13 @@ public class KillAuraRotationA extends Check {
         if (aw == null || aw.evaluated) return 0.0;
         if (aw.samples.size() < SNAP_MIN_SAMPLES) return 0.0;
 
-        // Геометрическое схлопывание ошибки + финальная малая ошибка
         List<AimSample> list = new ArrayList<>(aw.samples);
         List<Double> E = list.stream().map(s -> s.err).collect(Collectors.toList());
         int N = E.size();
 
         int strongSteps = 0;
-        double geo = 1.0; int cnt = 0;
+        double geo = 1.0;
+        int cnt = 0;
         for (int i = 1; i < N; i++) {
             double e0 = E.get(i - 1), e1 = E.get(i);
             if (e0 < 1e-3) continue;
@@ -357,20 +334,41 @@ public class KillAuraRotationA extends Check {
         return new double[]{yaw, pitch};
     }
 
-    // ===================== Фичи и метрики =====================
-
     private static class QuantResult {
-        final String axis; final double step; final double coverage; final int samples;
+        final String axis;
+        final double step;
+        final double coverage;
+        final int samples;
         QuantResult(String axis, double step, double coverage, int samples) {
-            this.axis = axis; this.step = step; this.coverage = coverage; this.samples = samples;
+            this.axis = axis;
+            this.step = step;
+            this.coverage = coverage;
+            this.samples = samples;
         }
     }
-    private static class ConstResult { final double constRatio; final int samples; ConstResult(double r, int s){constRatio=r; samples=s;} }
-    private static class RobotResult { final double mean, stdDev; final int samples; RobotResult(double m,double s,int n){mean=m;stdDev=s;samples=n;} }
+
+    private static class ConstResult {
+        final double constRatio;
+        final int samples;
+        ConstResult(double r, int s) {
+            constRatio = r;
+            samples = s;
+        }
+    }
+
+    private static class RobotResult {
+        final double mean, stdDev;
+        final int samples;
+        RobotResult(double m, double s, int n) {
+            mean = m;
+            stdDev = s;
+            samples = n;
+        }
+    }
 
     private static class Feature {
-        public GcdPersist qBestYaw, qBestPitch;
-        QuantResult qYaw, qPitch, qBest; String qBestAxis;
+        QuantResult qYaw, qPitch, qBest;
+        String qBestAxis;
         double sineMax, circularity, specMax, autocorr, linear, jerkShare, microRatio;
         boolean noMicro;
         ConstResult constSpeed;
@@ -383,13 +381,6 @@ public class KillAuraRotationA extends Check {
         f.qPitch = quantizationScore(rots, false);
         f.qBest = f.qYaw.coverage >= f.qPitch.coverage ? f.qYaw : f.qPitch;
         f.qBestAxis = f.qYaw.coverage >= f.qPitch.coverage ? "Yaw" : "Pitch";
-        
-        // Initialize qBestYaw and qBestPitch with the step values from quantization
-        f.qBestYaw = new GcdPersist();
-        f.qBestYaw.step = f.qYaw.step;
-        f.qBestPitch = new GcdPersist();
-        f.qBestPitch.step = f.qPitch.step;
-
         f.sineMax = Math.max(sineIndex(rots, true), sineIndex(rots, false));
         f.circularity = circularityIndex(rots);
         f.constSpeed = constantSpeed(rots);
@@ -411,7 +402,6 @@ public class KillAuraRotationA extends Check {
         }
         int n = deltas.size();
         if (n < 6) return new QuantResult(yaw ? "Yaw" : "Pitch", 0, 0, n);
-
         double bestCoverage = 0.0, bestStep = 0.0;
         for (double step = 0.02; step <= 1.20; step += 0.005) {
             double tol = Math.max(0.003, step * 0.025);
@@ -422,7 +412,10 @@ public class KillAuraRotationA extends Check {
                 if (dist <= tol) ok++;
             }
             double cov = ok / (double) n;
-            if (cov > bestCoverage) { bestCoverage = cov; bestStep = step; }
+            if (cov > bestCoverage) {
+                bestCoverage = cov;
+                bestStep = step;
+            }
         }
         return new QuantResult(yaw ? "Yaw" : "Pitch", bestStep, bestCoverage, n);
     }
@@ -430,6 +423,7 @@ public class KillAuraRotationA extends Check {
     private boolean lacksMicroCorrections(List<RotationData> rots) {
         return microRatio(rots) < 0.15 && rots.stream().mapToDouble(RotationData::getTotalDelta).average().orElse(0) > 5.0;
     }
+
     private double microRatio(List<RotationData> rots) {
         int micro = 0;
         for (RotationData r : rots) {
@@ -571,20 +565,19 @@ public class KillAuraRotationA extends Check {
         return Math.max(0.0, Math.min(1.0, best));
     }
 
-    // ===================== GCD персистентность =====================
-
     private static class GcdPersist {
-        double step = 0.0; int persist = 0;
+        double step = 0.0;
+        int persist = 0;
     }
 
     private boolean updateAndCheckGcdPersist(UUID uuid, Feature f, Baseline base) {
         boolean strongNow = f.qBest.coverage >= GCD_LOCK_THRESHOLD && f.qBest.samples >= 8 && f.qBest.step > 0.01 && f.qBest.step <= 1.2;
         GcdPersist gp = gcdPersist.getOrDefault(uuid, new GcdPersist());
         if (strongNow) {
-            if (Math.abs(f.qBestYaw.step - gp.step) < 0.006) {
+            if (Math.abs(f.qBest.step - gp.step) < 0.006) {
                 gp.persist++;
             } else {
-                gp.step = f.qBestYaw.step;
+                gp.step = f.qBest.step;
                 gp.persist = 1;
             }
         } else {
@@ -595,14 +588,10 @@ public class KillAuraRotationA extends Check {
         boolean baselineSame = false;
         if (base != null) {
             double baseStep = "Yaw".equals(f.qBestAxis) ? base.gcdYawStep : base.gcdPitchStep;
-            if (baseStep > 0 && Math.abs(baseStep - f.qBestYaw.step) < 0.006) baselineSame = true;
+            if (baseStep > 0 && Math.abs(baseStep - f.qBest.step) < 0.006) baselineSame = true;
         }
-
-        // Считаем GCD сильным только если держится ≥3 окон И заметно отличается от baseline
         return gp.persist >= GCD_PERSIST_REQ && !baselineSame;
     }
-
-    // ===================== Ритм атак (опциональная микродобавка) =====================
 
     @SuppressWarnings("unused")
     private double cadenceScore(UUID uuid) {
@@ -619,10 +608,8 @@ public class KillAuraRotationA extends Check {
         double std = Math.sqrt(var);
         double cv = std / mean;
         boolean plausibleCooldown = mean >= 350 && mean <= 800;
-        return (cv <= 0.15 && plausibleCooldown) ? 0.4 : 0.0; // очень малый вес
+        return (cv <= 0.15 && plausibleCooldown) ? 0.4 : 0.0;
     }
-
-    // ===================== Вспомогательные =====================
 
     private boolean isPlayerAttacking(UUID uuid) {
         Long last = lastAttackTime.get(uuid);
@@ -641,7 +628,7 @@ public class KillAuraRotationA extends Check {
     }
 
     private void flag(Player player, String reason, String details) {
-        Alert alert = new Alert(player, "KillAuraRotationA", AlertType.EXPERIMENTAL,
+        Alert alert = new Alert(player, "KillAuraRotationA", AlertType.HIGH,
                 getViolationLevel(player), reason + " - " + details);
         plugin.getAlertManager().sendAlert(alert);
         increaseViolationLevel(player);
@@ -662,6 +649,7 @@ public class KillAuraRotationA extends Check {
         gcdPersist.remove(uuid);
         baselines.remove(uuid);
         attackTimes.remove(uuid);
+        lastBaselineUpdate.remove(uuid);
         resetViolationLevel(player);
     }
 
@@ -670,7 +658,22 @@ public class KillAuraRotationA extends Check {
         return plugin.getConfig().getBoolean("checks.killaurarotationa.enabled", true);
     }
 
-    // Baseline-структура
+    private boolean isBatchReady(UUID uuid) {
+        Deque<Long> times = attackTimes.get(uuid);
+        if (times == null || times.size() < BATCH_MIN_HITS) return false;
+        if (BATCH_WINDOW_MAX_MS <= 0) return true;
+        Long first = times.peekFirst();
+        Long last = times.peekLast();
+        if (first == null || last == null) return false;
+        return last - first <= BATCH_WINDOW_MAX_MS;
+    }
+
+    private void resetBatch(UUID uuid) {
+        Deque<Long> times = attackTimes.get(uuid);
+        if (times != null) times.clear();
+        recentAttacks.put(uuid, 0);
+    }
+
     private static class Baseline {
         double gcdYawStep, gcdYawCov, gcdPitchStep, gcdPitchCov;
         double microRatioAvg;

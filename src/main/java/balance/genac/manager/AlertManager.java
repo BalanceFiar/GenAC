@@ -2,6 +2,7 @@ package balance.genac.manager;
 
 import balance.genac.GenAC;
 import balance.genac.alert.Alert;
+import balance.genac.alert.Flag;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
@@ -19,12 +20,15 @@ public class AlertManager {
     private final List<Alert> recentAlerts;
     private final int maxRecentAlerts;
 
+    private final Flag flagHandler;
+
     public AlertManager(GenAC plugin) {
         this.plugin = plugin;
         this.alertsEnabled = new ArrayList<>();
         this.alertQueue = new ConcurrentLinkedQueue<>();
         this.recentAlerts = new ArrayList<>();
         this.maxRecentAlerts = 100;
+        this.flagHandler = new Flag(plugin);
     }
 
     public void sendAlert(Alert alert) {
@@ -46,6 +50,8 @@ public class AlertManager {
         if (plugin.getConfig().getBoolean("alerts.console-alerts", true)) {
             Bukkit.getConsoleSender().sendMessage(ChatColor.stripColor(message));
         }
+
+        flagHandler.handleAlert(alert);
     }
 
     private void addToRecentAlerts(Alert alert) {

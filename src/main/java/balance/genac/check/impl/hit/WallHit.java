@@ -6,7 +6,6 @@ import balance.genac.alert.AlertType;
 import balance.genac.check.Check;
 import balance.genac.check.CheckInfo;
 import balance.genac.check.CheckType;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -32,21 +31,20 @@ import java.util.UUID;
 @CheckInfo(
         name = "WallHit",
         type = CheckType.COMBAT,
-        description = "Detects melee hits through solid walls. Ignores legit: doors/trapdoors/gates (any state) and blocks above doors; passable/foliage/liquid; edge/seam tolerances."
+        description = "Detects melee hits through solid walls while ignoring legit doors/door-columns and edge/seam cases."
 )
 public class WallHit extends Check {
 
     private static final double MAX_CHECK_DISTANCE = 6.0;
-
     private static final double[] AIM_Y_FRAC = {0.85, 0.65, 0.50};
-
     private static final double STEP = 0.12;
     private static final double EPS_TOP = 0.06;
     private static final double EPS_FACE = 0.06;
+    private static final double EDGE_ALLOW_DIST = 0.55;
 
     private static final Set<Material> WHITELIST = new HashSet<>();
     static {
-        WHITELIST.add(Material.AIR);
+        addIfExists("AIR");
         addIfExists("CAVE_AIR");
         addIfExists("VOID_AIR");
         addIfExists("WATER");
@@ -121,7 +119,6 @@ public class WallHit extends Check {
 
         for (int i = 0; i <= steps; i++) {
             Vector p = start.clone().add(dir.clone().multiply(stepLen * i));
-
             if (p.distanceSquared(end) <= 0.25) return null;
 
             int bx = (int) Math.floor(p.getX());
@@ -130,7 +127,6 @@ public class WallHit extends Check {
             Block b = w.getBlockAt(bx, by, bz);
 
             if (shouldIgnore(b)) continue;
-
             if (isDoorColumn(b)) continue;
 
             double topY = by + 1.0;
@@ -139,39 +135,35 @@ public class WallHit extends Check {
             double fx = p.getX() - bx;
             double fz = p.getZ() - bz;
 
-            if (fx <= EPS_FACE) {
-                if (isSeamOpen(w.getBlockAt(bx - 1, by, bz))) continue;
-            } else if (fx >= 1.0 - EPS_FACE) {
-                if (isSeamOpen(w.getBlockAt(bx + 1, by, bz))) continue;
-            }
-            if (fz <= EPS_FACE) {
-                if (isSeamOpen(w.getBlockAt(bx, by, bz - 1))) continue;
-            } else if (fz >= 1.0 - EPS_FACE) {
-                if (isSeamOpen(w.getBlockAt(bx, by, bz + 1))) continue;
-            }
+            boolean seamXNeg = fx <= EPS_FACE && (isSeamColumnOpen(w, bx - 1, by, bz) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx - 1, by, bz))));
+            boolean seamXPos = fx >= 1.0 - EPS_FACE && (isSeamColumnOpen(w, bx + 1, by, bz) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx + 1, by, bz))));
+            boolean seamZNeg = fz <= EPS_FACE && (isSeamColumnOpen(w, bx, by, bz - 1) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx, by, bz - 1))));
+            boolean seamZPos = fz >= 1.0 - EPS_FACE && (isSeamColumnOpen(w, bx, by, bz + 1) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx, by, bz + 1))));
+
+            if (seamXNeg || seamXPos || seamZNeg || seamZPos) continue;
 
             return b;
         }
         return null;
     }
 
+    private boolean isSeamColumnOpen(World w, int x, int y, int z) {
+        Block b0 = w.getBlockAt(x, y, z);
+        Block b1 = w.getBlockAt(x, y + 1, z);
+        return isSeamOpen(b0) && isSeamOpen(b1);
+    }
+
     private boolean isSeamOpen(Block b) {
-        if (b == null) return true;
-        return shouldIgnore(b) || isDoorColumn(b);
+        return b == null || shouldIgnore(b) || isDoorColumn(b);
     }
 
     private boolean shouldIgnore(Block b) {
         Material m = b.getType();
         if (m == null) return true;
-
         if (WHITELIST.contains(m)) return true;
-
         try { if (b.isPassable()) return true; } catch (Throwable ignored) {}
-
         if (isAnyOpenable(b)) return true;
-
         try { if (!m.isOccluding()) return true; } catch (Throwable ignored) {}
-
         return false;
     }
 
@@ -202,7 +194,6 @@ public class WallHit extends Check {
         if (b == null) return false;
         try {
             BlockData bd = b.getBlockData();
-
             if (bd != null && bd.getClass().getName().endsWith(".Door")) return true;
         } catch (Throwable ignored) {}
         try {
@@ -223,7 +214,7 @@ public class WallHit extends Check {
         Alert alert = new Alert(
                 player,
                 "WallHit",
-                AlertType.EXPERIMENTAL,
+                AlertType.HIGH,
                 getViolationLevel(player),
                 "Hit through wall | " + details
         );
@@ -231,9 +222,9 @@ public class WallHit extends Check {
         increaseViolationLevel(player);
     }
 
-    private static void addIfExists(String mat) {
+    private static void addIfExists(String name) {
         try {
-            Material m = Material.valueOf(mat);
+            Material m = Material.valueOf(name);
             if (m != null) WHITELIST.add(m);
         } catch (Throwable ignored) {}
     }
