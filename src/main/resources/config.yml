@@ -10,6 +10,10 @@ alerts:
   alert-format: "&8[&bGenAC&8] &f{player} &8failed &f{check} &8(&f{vl}&8) &8- &f{details}"
 
 checks:
+  wallhit:
+    enabled: true
+    max-violations: 5
+    experimental: false
   killaurarotationa:
     enabled: true
     max-violations: 10
@@ -18,10 +22,7 @@ checks:
     enabled: true
     max-violations: 8
     experimental: true
-  killaurarotationc:
-    enabled: true
-    max-violations: 6
-    experimental: true
+
 
 punishments:
   enabled: true
