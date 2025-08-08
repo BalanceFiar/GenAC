@@ -1,0 +1,24 @@
+name: GenAC
+version: '1.0.0'
+main: balance.genac.GenAC
+api-version: 1.16
+authors: [YourName]
+description: Advanced Anti-Cheat Plugin
+
+commands:
+  genac:
+    description: Main GenAC command
+    usage: /<command> [args]
+    permission: genac.admin
+    aliases: [gac, anticheat]
+
+permissions:
+  genac.admin:
+    description: Access to all GenAC commands
+    default: op
+  genac.alerts:
+    description: Receive GenAC alerts
+    default: op
+  genac.bypass:
+    description: Bypass all GenAC checks
+    default: false
