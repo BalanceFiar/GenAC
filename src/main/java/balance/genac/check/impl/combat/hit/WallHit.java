@@ -1,4 +1,4 @@
-package balance.genac.check.impl.hit;
+package balance.genac.check.impl.combat.hit;
 
 import balance.genac.GenAC;
 import balance.genac.alert.Alert;
@@ -12,7 +12,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Openable;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -38,8 +37,10 @@ public class WallHit extends Check {
     private static final double MAX_CHECK_DISTANCE = 6.0;
     private static final double STEP = 0.12;
     private static final double EPS_TOP = 0.06;
-    private static final double EPS_FACE = 0.06;
-    private static final double EDGE_ALLOW_DIST = 0.55;
+    private static final double EPS_FACE = 0.02;
+    private static final double EDGE_ALLOW_DIST = 0.3;
+    private static final int MAX_WALL_HEIGHT_CHECK = 4;
+    private static final double SEAM_TOLERANCE = 0.15;
 
     private static final Set<Material> WHITELIST = new HashSet<>();
     static {
@@ -78,11 +79,11 @@ public class WallHit extends Check {
         if (eye.getWorld() != victimLoc.getWorld()) return;
         if (eye.distanceSquared(victimLoc) > MAX_CHECK_DISTANCE * MAX_CHECK_DISTANCE) return;
 
-        if (canReachAnyPartOfHitbox(eye, victim)) {
+        if (canReachAnyPartOfHitbox(eye, victim, player)) {
             return;
         }
 
-        Block firstSolid = getFirstBlockingBlock(eye, victim);
+        Block firstSolid = getFirstBlockingBlock(eye, victim, player);
         if (firstSolid != null) {
             String details = String.format("through:%s @ %d,%d,%d dist:%.2f",
                     firstSolid.getType().name(),
@@ -92,7 +93,7 @@ public class WallHit extends Check {
         }
     }
 
-    private boolean canReachAnyPartOfHitbox(Location eye, LivingEntity victim) {
+    private boolean canReachAnyPartOfHitbox(Location eye, LivingEntity victim, Player player) {
         Location base = victim.getLocation();
         double width = getEntityWidth(victim);
         double height = victim.getHeight();
@@ -110,14 +111,14 @@ public class WallHit extends Check {
                     Location targetPoint = base.clone().add(xOff, yOff, zOff);
                     totalPoints++;
 
-                    if (firstBlockingAlongRay(eye, targetPoint) == null) {
+                    if (firstBlockingAlongRay(eye, targetPoint, player) == null) {
                         accessiblePoints++;
                     }
                 }
             }
         }
 
-        return accessiblePoints >= totalPoints * 0.1;
+        return accessiblePoints >= totalPoints * 0.01;
     }
 
     private double getEntityWidth(LivingEntity entity) {
@@ -129,12 +130,12 @@ public class WallHit extends Check {
         }
     }
 
-    private Block getFirstBlockingBlock(Location eye, LivingEntity victim) {
+    private Block getFirstBlockingBlock(Location eye, LivingEntity victim, Player player) {
         Location center = victim.getLocation().add(0, victim.getHeight() * 0.5, 0);
-        return firstBlockingAlongRay(eye, center);
+        return firstBlockingAlongRay(eye, center, player);
     }
 
-    private Block firstBlockingAlongRay(Location from, Location to) {
+    private Block firstBlockingAlongRay(Location from, Location to, Player player) {
         if (from == null || to == null) return null;
         World w = from.getWorld();
         if (w == null || w != to.getWorld()) return null;
@@ -149,6 +150,8 @@ public class WallHit extends Check {
         int steps = Math.max(1, (int) Math.ceil(dist / STEP));
         double stepLen = dist / steps;
 
+        boolean playerOnSeam = isPlayerOnBlockSeam(player);
+
         for (int i = 0; i <= steps; i++) {
             Vector p = start.clone().add(dir.clone().multiply(stepLen * i));
 
@@ -162,38 +165,186 @@ public class WallHit extends Check {
             if (shouldIgnore(b)) continue;
             if (isDoorColumn(b)) continue;
 
-            if (isNearBlockEdge(p, bx, by, bz, w, i * stepLen)) continue;
+            if (isNearBlockEdge(p, bx, by, bz, w, i * stepLen, from, to, player, playerOnSeam)) continue;
 
             return b;
         }
         return null;
     }
 
-    private boolean isNearBlockEdge(Vector p, int bx, int by, int bz, World w, double rayDistance) {
+    private boolean isPlayerOnBlockSeam(Player player) {
+        Location loc = player.getLocation();
+        double x = loc.getX();
+        double z = loc.getZ();
+
+        double xFrac = Math.abs(x - Math.floor(x));
+        double zFrac = Math.abs(z - Math.floor(z));
+
+        boolean onXSeam = xFrac <= SEAM_TOLERANCE || xFrac >= (1.0 - SEAM_TOLERANCE);
+        boolean onZSeam = zFrac <= SEAM_TOLERANCE || zFrac >= (1.0 - SEAM_TOLERANCE);
+
+        return onXSeam || onZSeam;
+    }
+
+    private boolean isNearBlockEdge(Vector p, int bx, int by, int bz, World w, double rayDistance, Location from, Location to, Player player, boolean playerOnSeam) {
         double fx = p.getX() - bx;
         double fy = p.getY() - by;
         double fz = p.getZ() - bz;
 
         if (fy >= 1.0 - EPS_TOP) return true;
 
-        double edgeEps = rayDistance <= EDGE_ALLOW_DIST ? EPS_FACE * 2 : EPS_FACE;
+        double edgeEps = EPS_FACE;
+        if (playerOnSeam) {
+            edgeEps *= 0.5;
+        }
 
         boolean nearXNeg = fx <= edgeEps;
         boolean nearXPos = fx >= 1.0 - edgeEps;
         boolean nearZNeg = fz <= edgeEps;
         boolean nearZPos = fz >= 1.0 - edgeEps;
 
-        if (nearXNeg && isPathClear(w, bx - 1, by, bz)) return true;
-        if (nearXPos && isPathClear(w, bx + 1, by, bz)) return true;
-        if (nearZNeg && isPathClear(w, bx, by, bz - 1)) return true;
-        if (nearZPos && isPathClear(w, bx, by, bz + 1)) return true;
+        if (playerOnSeam && (nearXNeg || nearXPos || nearZNeg || nearZPos)) {
+            if (isBlockedByAdjacentWalls(w, bx, by, bz, from, to, player)) {
+                return false;
+            }
+        }
 
-        if (nearXNeg && nearZNeg && (isPathClear(w, bx - 1, by, bz) || isPathClear(w, bx, by, bz - 1))) return true;
-        if (nearXPos && nearZNeg && (isPathClear(w, bx + 1, by, bz) || isPathClear(w, bx, by, bz - 1))) return true;
-        if (nearXNeg && nearZPos && (isPathClear(w, bx - 1, by, bz) || isPathClear(w, bx, by, bz + 1))) return true;
-        if (nearXPos && nearZPos && (isPathClear(w, bx + 1, by, bz) || isPathClear(w, bx, by, bz + 1))) return true;
+        if (nearXNeg && canReachThroughEdge(w, bx - 1, by, bz, bx, by, bz, from, to, player, playerOnSeam)) return true;
+        if (nearXPos && canReachThroughEdge(w, bx + 1, by, bz, bx, by, bz, from, to, player, playerOnSeam)) return true;
+        if (nearZNeg && canReachThroughEdge(w, bx, by, bz - 1, bx, by, bz, from, to, player, playerOnSeam)) return true;
+        if (nearZPos && canReachThroughEdge(w, bx, by, bz + 1, bx, by, bz, from, to, player, playerOnSeam)) return true;
+
+        if (nearXNeg && nearZNeg) {
+            return isCornerPassable(w, bx, by, bz, bx - 1, by, bz - 1, from, to, player, playerOnSeam);
+        }
+        if (nearXPos && nearZNeg) {
+            return isCornerPassable(w, bx, by, bz, bx + 1, by, bz - 1, from, to, player, playerOnSeam);
+        }
+        if (nearXNeg && nearZPos) {
+            return isCornerPassable(w, bx, by, bz, bx - 1, by, bz + 1, from, to, player, playerOnSeam);
+        }
+        if (nearXPos && nearZPos) {
+            return isCornerPassable(w, bx, by, bz, bx + 1, by, bz + 1, from, to, player, playerOnSeam);
+        }
 
         return false;
+    }
+
+    private boolean isBlockedByAdjacentWalls(World w, int bx, int by, int bz, Location from, Location to, Player player) {
+        Location playerLoc = player.getLocation();
+
+        int[] xOffsets = {-1, 0, 1};
+        int[] zOffsets = {-1, 0, 1};
+
+        int solidCount = 0;
+        for (int xOff : xOffsets) {
+            for (int zOff : zOffsets) {
+                if (xOff == 0 && zOff == 0) continue;
+
+                Block adjacent = w.getBlockAt(bx + xOff, by, bz + zOff);
+                if (!isSeamOpen(adjacent)) {
+                    solidCount++;
+                }
+            }
+        }
+
+        if (solidCount >= 6) {
+            Vector playerPos = playerLoc.toVector();
+            Vector blockPos = new Vector(bx + 0.5, by + 0.5, bz + 0.5);
+            Vector targetPos = to.toVector();
+
+            double playerToBlock = playerPos.distance(blockPos);
+            double targetToBlock = targetPos.distance(blockPos);
+
+            if (playerToBlock < 1.5 && targetToBlock > 1.0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isCornerPassable(World w, int blockX, int blockY, int blockZ, int cornerX, int cornerY, int cornerZ, Location from, Location to, Player player, boolean playerOnSeam) {
+        if (playerOnSeam) {
+            return false;
+        }
+
+        Block adjacentX = w.getBlockAt(blockX + (cornerX - blockX), blockY, blockZ);
+        Block adjacentZ = w.getBlockAt(blockX, blockY, cornerZ);
+        Block corner = w.getBlockAt(cornerX, cornerY, cornerZ);
+
+        boolean xClear = isSeamOpen(adjacentX) && isSeamOpen(w.getBlockAt(adjacentX.getX(), adjacentX.getY() + 1, adjacentX.getZ()));
+        boolean zClear = isSeamOpen(adjacentZ) && isSeamOpen(w.getBlockAt(adjacentZ.getX(), adjacentZ.getY() + 1, adjacentZ.getZ()));
+        boolean cornerClear = isSeamOpen(corner) && isSeamOpen(w.getBlockAt(corner.getX(), corner.getY() + 1, corner.getZ()));
+
+        if (!cornerClear) return false;
+        if (!xClear && !zClear) return false;
+
+        Vector playerPos = from.toVector();
+        Vector targetPos = to.toVector();
+        Vector blockPos = new Vector(blockX + 0.5, blockY + 0.5, blockZ + 0.5);
+
+        double playerToBlock = playerPos.distance(blockPos);
+        double targetToBlock = targetPos.distance(blockPos);
+
+        if (playerToBlock < 1.2 && targetToBlock > 1.8) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean canReachThroughEdge(World w, int x, int y, int z, int originalX, int originalY, int originalZ, Location from, Location to, Player player, boolean playerOnSeam) {
+        if (!isPathClear(w, x, y, z)) {
+            return false;
+        }
+
+        if (playerOnSeam) {
+            Vector playerPos = from.toVector();
+            Vector targetPos = to.toVector();
+            Vector blockPos = new Vector(originalX + 0.5, originalY + 0.5, originalZ + 0.5);
+
+            double distToPlayer = playerPos.distance(blockPos);
+            double distToTarget = targetPos.distance(blockPos);
+
+            if (distToPlayer < 1.0 && distToTarget > 1.2) {
+                return false;
+            }
+        }
+
+        int wallHeight = getWallHeight(w, x, y, z);
+        double rayHeight = Math.abs(to.getY() - from.getY());
+
+        if (wallHeight >= 3 && rayHeight < wallHeight - 1) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private int getWallHeight(World w, int x, int y, int z) {
+        int height = 0;
+        int startY = y;
+
+        for (int checkY = startY; checkY <= startY + MAX_WALL_HEIGHT_CHECK; checkY++) {
+            Block block = w.getBlockAt(x, checkY, z);
+            if (!isSeamOpen(block)) {
+                height++;
+            } else {
+                break;
+            }
+        }
+
+        for (int checkY = startY - 1; checkY >= startY - MAX_WALL_HEIGHT_CHECK; checkY--) {
+            Block block = w.getBlockAt(x, checkY, z);
+            if (!isSeamOpen(block)) {
+                height++;
+            } else {
+                break;
+            }
+        }
+
+        return height;
     }
 
     private boolean isPathClear(World w, int x, int y, int z) {

@@ -34,7 +34,7 @@ public class RotationTracker {
         List<RotationData> history = playerRotations.computeIfAbsent(uuid, k -> new ArrayList<>());
         history.add(newRotation);
 
-        // Ограничиваем размер истории
+
         if (history.size() > maxHistorySize) {
             history.remove(0);
         }

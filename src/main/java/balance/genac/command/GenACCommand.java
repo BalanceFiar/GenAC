@@ -149,7 +149,6 @@ public class GenACCommand implements CommandExecutor, TabCompleter {
     }
 
     private void toggleCheck(CommandSender sender, String checkName) {
-        // Эта функция требует дополнительной реализации в CheckManager
         sender.sendMessage(ChatColor.YELLOW + "Check toggle functionality will be implemented soon.");
     }
 

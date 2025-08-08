@@ -4,6 +4,7 @@ import balance.genac.command.GenACCommand;
 import balance.genac.manager.AlertManager;
 import balance.genac.manager.CheckManager;
 import balance.genac.manager.ConfigManager;
+import balance.genac.manager.PunishmentManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -14,6 +15,7 @@ public final class GenAC extends JavaPlugin {
     private ConfigManager configManager;
     private AlertManager alertManager;
     private CheckManager checkManager;
+    private PunishmentManager punishmentManager;
 
     @Override
     public void onEnable() {
@@ -23,6 +25,7 @@ public final class GenAC extends JavaPlugin {
 
         this.configManager = new ConfigManager(this);
         this.alertManager = new AlertManager(this);
+        this.punishmentManager = new PunishmentManager(this);
         this.checkManager = new CheckManager(this);
 
         configManager.loadConfig();
@@ -57,5 +60,9 @@ public final class GenAC extends JavaPlugin {
 
     public CheckManager getCheckManager() {
         return checkManager;
+    }
+
+    public PunishmentManager getPunishmentManager() {
+        return punishmentManager;
     }
 }

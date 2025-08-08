@@ -37,12 +37,19 @@ public abstract class Check implements Listener {
     }
 
     public int getViolationLevel(Player player) {
+        if (plugin.getPunishmentManager() != null) {
+            return plugin.getPunishmentManager().getViolations(player.getUniqueId(), getName());
+        }
         return violationLevels.getOrDefault(player.getUniqueId(), 0);
     }
 
     public void increaseViolationLevel(Player player) {
-        UUID uuid = player.getUniqueId();
-        violationLevels.put(uuid, violationLevels.getOrDefault(uuid, 0) + 1);
+        if (plugin.getPunishmentManager() != null) {
+            plugin.getPunishmentManager().handleViolation(player, getName());
+        } else {
+            UUID uuid = player.getUniqueId();
+            violationLevels.put(uuid, violationLevels.getOrDefault(uuid, 0) + 1);
+        }
     }
 
     public void decreaseViolationLevel(Player player) {
@@ -54,19 +61,29 @@ public abstract class Check implements Listener {
     }
 
     public void resetViolationLevel(Player player) {
+        if (plugin.getPunishmentManager() != null) {
+            plugin.getPunishmentManager().clearViolations(player.getUniqueId(), getName());
+        }
         violationLevels.remove(player.getUniqueId());
     }
 
     public void clearPlayerData(Player player) {
-        violationLevels.remove(player.getUniqueId());
+        resetViolationLevel(player);
     }
 
     public boolean isEnabled() {
-        return plugin.getConfig().getBoolean("checks." + getName().toLowerCase() + ".enabled", true);
+        String checkPath = getConfigPath();
+        return plugin.getConfig().getBoolean(checkPath + ".enabled", true);
     }
 
     public int getMaxViolations() {
-        return plugin.getConfig().getInt("checks." + getName().toLowerCase() + ".max-violations", 10);
+        String checkPath = getConfigPath();
+        return plugin.getConfig().getInt(checkPath + ".max-violations", 10);
+    }
+
+    private String getConfigPath() {
+        String checkName = getName().toLowerCase();
+        return "checks." + checkName;
     }
 
     @Override

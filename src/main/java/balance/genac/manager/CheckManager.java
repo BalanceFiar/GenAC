@@ -2,9 +2,10 @@ package balance.genac.manager;
 
 import balance.genac.GenAC;
 import balance.genac.check.Check;
+import balance.genac.check.impl.combat.hit.Reach;
 import balance.genac.check.impl.combat.killaura.KillAuraRotationA;
 import balance.genac.check.impl.combat.killaura.KillAuraRotationB;
-import balance.genac.check.impl.hit.WallHit;
+import balance.genac.check.impl.combat.hit.WallHit;
 import balance.genac.check.impl.movement.InvMove;
 import org.bukkit.Bukkit;
 import org.bukkit.event.HandlerList;
@@ -24,6 +25,7 @@ public class CheckManager {
 
     public void loadChecks() {
         plugin.getLogger().info("Loading checks...");
+        registerCheck(new Reach(plugin));
         registerCheck(new InvMove(plugin));
         registerCheck(new WallHit(plugin));
         registerCheck(new KillAuraRotationA(plugin));
