@@ -16,24 +16,56 @@ The plugin generates a `config.yml` file with customizable settings for each che
 
 ```yaml
 # GenAC Configuration
+general:
+  enabled: true
+  debug: false
+  auto-update: true
+
 alerts:
   enabled: true
   console-alerts: true
+  broadcast-alerts: true
   alert-format: "&8[&bGenAC&8] &f{player} &8failed &f{check} &8(&f{vl}&8) &8- &f{details}"
 
 checks:
   wallhit:
     enabled: true
     max-violations: 5
+    experimental: false
   killaurarotationa:
     enabled: true
     max-violations: 10
-  killaurarrotationb:
+    experimental: false
+  killaurarotationb:
     enabled: true
     max-violations: 8
-  killaurarotationc:
+    experimental: true
+  invmode:
     enabled: true
-    max-violations: 15
+    max-violations: 5
+    experimental: false
+
+
+punishments:
+  enabled: true
+  kick-threshold: 20
+  ban-threshold: 50
+  kick-command: "kick {player} GenAC: Suspicious activity detected"
+  ban-command: "ban {player} GenAC: Cheating detected"
+
+database:
+  enabled: false
+  type: "sqlite"
+  host: "localhost"
+  port: 3306
+  database: "genac"
+  username: "root"
+  password: ""
+
+performance:
+  max-checks-per-tick: 50
+  async-processing: true
+  thread-pool-size: 4
 ```
 
 ## Commands
