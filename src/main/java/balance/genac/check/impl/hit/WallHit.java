@@ -31,12 +31,11 @@ import java.util.UUID;
 @CheckInfo(
         name = "WallHit",
         type = CheckType.COMBAT,
-        description = "Detects melee hits through solid walls while ignoring legit doors/door-columns and edge/seam cases."
+        description = "Detects hit through walls"
 )
 public class WallHit extends Check {
 
     private static final double MAX_CHECK_DISTANCE = 6.0;
-    private static final double[] AIM_Y_FRAC = {0.85, 0.65, 0.50};
     private static final double STEP = 0.12;
     private static final double EPS_TOP = 0.06;
     private static final double EPS_FACE = 0.06;
@@ -75,31 +74,64 @@ public class WallHit extends Check {
         if (player.hasPermission("genac.bypass")) return;
 
         Location eye = player.getEyeLocation();
-        Location mid = victim.getLocation().add(0, victim.getHeight() * 0.5, 0);
-        if (eye.getWorld() != mid.getWorld()) return;
-        if (eye.distanceSquared(mid) > MAX_CHECK_DISTANCE * MAX_CHECK_DISTANCE) return;
+        Location victimLoc = victim.getLocation();
+        if (eye.getWorld() != victimLoc.getWorld()) return;
+        if (eye.distanceSquared(victimLoc) > MAX_CHECK_DISTANCE * MAX_CHECK_DISTANCE) return;
 
-        boolean blockedAll = true;
-        Block firstSolid = null;
-
-        for (double frac : AIM_Y_FRAC) {
-            Location aim = victim.getLocation().add(0, Math.max(0.1, victim.getHeight() * frac), 0);
-            Block hit = firstBlockingAlongRay(eye, aim);
-            if (hit == null) {
-                blockedAll = false;
-                break;
-            } else if (firstSolid == null) {
-                firstSolid = hit;
-            }
+        if (canReachAnyPartOfHitbox(eye, victim)) {
+            return;
         }
 
-        if (blockedAll && firstSolid != null) {
+        Block firstSolid = getFirstBlockingBlock(eye, victim);
+        if (firstSolid != null) {
             String details = String.format("through:%s @ %d,%d,%d dist:%.2f",
                     firstSolid.getType().name(),
                     firstSolid.getX(), firstSolid.getY(), firstSolid.getZ(),
-                    eye.distance(mid));
+                    eye.distance(victimLoc));
             flag(player, victim.getUniqueId(), details);
         }
+    }
+
+    private boolean canReachAnyPartOfHitbox(Location eye, LivingEntity victim) {
+        Location base = victim.getLocation();
+        double width = getEntityWidth(victim);
+        double height = victim.getHeight();
+
+        double[] xOffsets = {-width/2, 0, width/2};
+        double[] yOffsets = {0.1, height * 0.3, height * 0.6, height * 0.9};
+        double[] zOffsets = {-width/2, 0, width/2};
+
+        int accessiblePoints = 0;
+        int totalPoints = 0;
+
+        for (double xOff : xOffsets) {
+            for (double yOff : yOffsets) {
+                for (double zOff : zOffsets) {
+                    Location targetPoint = base.clone().add(xOff, yOff, zOff);
+                    totalPoints++;
+
+                    if (firstBlockingAlongRay(eye, targetPoint) == null) {
+                        accessiblePoints++;
+                    }
+                }
+            }
+        }
+
+        return accessiblePoints >= totalPoints * 0.1;
+    }
+
+    private double getEntityWidth(LivingEntity entity) {
+        if (entity instanceof Player) return 0.6;
+        try {
+            return entity.getBoundingBox().getWidthX();
+        } catch (Throwable ignored) {
+            return 0.6;
+        }
+    }
+
+    private Block getFirstBlockingBlock(Location eye, LivingEntity victim) {
+        Location center = victim.getLocation().add(0, victim.getHeight() * 0.5, 0);
+        return firstBlockingAlongRay(eye, center);
     }
 
     private Block firstBlockingAlongRay(Location from, Location to) {
@@ -119,7 +151,8 @@ public class WallHit extends Check {
 
         for (int i = 0; i <= steps; i++) {
             Vector p = start.clone().add(dir.clone().multiply(stepLen * i));
-            if (p.distanceSquared(end) <= 0.25) return null;
+
+            if (p.distanceSquared(end) <= 0.5) return null;
 
             int bx = (int) Math.floor(p.getX());
             int by = (int) Math.floor(p.getY());
@@ -129,22 +162,44 @@ public class WallHit extends Check {
             if (shouldIgnore(b)) continue;
             if (isDoorColumn(b)) continue;
 
-            double topY = by + 1.0;
-            if (p.getY() >= topY - EPS_TOP) continue;
-
-            double fx = p.getX() - bx;
-            double fz = p.getZ() - bz;
-
-            boolean seamXNeg = fx <= EPS_FACE && (isSeamColumnOpen(w, bx - 1, by, bz) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx - 1, by, bz))));
-            boolean seamXPos = fx >= 1.0 - EPS_FACE && (isSeamColumnOpen(w, bx + 1, by, bz) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx + 1, by, bz))));
-            boolean seamZNeg = fz <= EPS_FACE && (isSeamColumnOpen(w, bx, by, bz - 1) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx, by, bz - 1))));
-            boolean seamZPos = fz >= 1.0 - EPS_FACE && (isSeamColumnOpen(w, bx, by, bz + 1) || (i * stepLen <= EDGE_ALLOW_DIST && isSeamOpen(w.getBlockAt(bx, by, bz + 1))));
-
-            if (seamXNeg || seamXPos || seamZNeg || seamZPos) continue;
+            if (isNearBlockEdge(p, bx, by, bz, w, i * stepLen)) continue;
 
             return b;
         }
         return null;
+    }
+
+    private boolean isNearBlockEdge(Vector p, int bx, int by, int bz, World w, double rayDistance) {
+        double fx = p.getX() - bx;
+        double fy = p.getY() - by;
+        double fz = p.getZ() - bz;
+
+        if (fy >= 1.0 - EPS_TOP) return true;
+
+        double edgeEps = rayDistance <= EDGE_ALLOW_DIST ? EPS_FACE * 2 : EPS_FACE;
+
+        boolean nearXNeg = fx <= edgeEps;
+        boolean nearXPos = fx >= 1.0 - edgeEps;
+        boolean nearZNeg = fz <= edgeEps;
+        boolean nearZPos = fz >= 1.0 - edgeEps;
+
+        if (nearXNeg && isPathClear(w, bx - 1, by, bz)) return true;
+        if (nearXPos && isPathClear(w, bx + 1, by, bz)) return true;
+        if (nearZNeg && isPathClear(w, bx, by, bz - 1)) return true;
+        if (nearZPos && isPathClear(w, bx, by, bz + 1)) return true;
+
+        if (nearXNeg && nearZNeg && (isPathClear(w, bx - 1, by, bz) || isPathClear(w, bx, by, bz - 1))) return true;
+        if (nearXPos && nearZNeg && (isPathClear(w, bx + 1, by, bz) || isPathClear(w, bx, by, bz - 1))) return true;
+        if (nearXNeg && nearZPos && (isPathClear(w, bx - 1, by, bz) || isPathClear(w, bx, by, bz + 1))) return true;
+        if (nearXPos && nearZPos && (isPathClear(w, bx + 1, by, bz) || isPathClear(w, bx, by, bz + 1))) return true;
+
+        return false;
+    }
+
+    private boolean isPathClear(World w, int x, int y, int z) {
+        Block b = w.getBlockAt(x, y, z);
+        Block above = w.getBlockAt(x, y + 1, z);
+        return isSeamOpen(b) && isSeamOpen(above);
     }
 
     private boolean isSeamColumnOpen(World w, int x, int y, int z) {

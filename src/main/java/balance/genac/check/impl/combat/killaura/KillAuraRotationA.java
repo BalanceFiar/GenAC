@@ -20,7 +20,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-@CheckInfo(name = "KillAuraRotationA", type = CheckType.COMBAT, description = "Universal rotation aura detector with anti-false gating")
+@CheckInfo(name = "KillAuraRotationA", type = CheckType.COMBAT, description = "For smooth rotations")
 public class KillAuraRotationA extends Check {
 
     private final Map<UUID, RotationTracker> rotationTrackers = new HashMap<>();

@@ -17,10 +17,15 @@ import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.InventoryView;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.Bukkit;
 
 import java.util.*;
 
-@CheckInfo(name = "InvMove", type = CheckType.MOVEMENT, description = "Detects movement while interacting with inventory")
+@CheckInfo(name = "InvMove", type = CheckType.MOVEMENT, description = "Detects interacting with inventory while movement")
 public class InvMove extends Check {
 
     private static class Sample {
@@ -65,7 +70,6 @@ public class InvMove extends Check {
 
         Data d = map.computeIfAbsent(id, k -> new Data());
 
-        Location from = e.getFrom();
         Location to = e.getTo();
         if (to == null) return;
 
@@ -74,13 +78,8 @@ public class InvMove extends Check {
             double dx = to.getX() - d.lastLoc.getX();
             double dz = to.getZ() - d.lastLoc.getZ();
             double dist = Math.hypot(dx, dz);
-            if (dist > 1e-4) {
-                d.speeds.addLast(new Sample(dist, now)); // блоки/тик
-                while (d.speeds.size() > SPEED_BUF) d.speeds.removeFirst();
-            } else {
-                d.speeds.addLast(new Sample(0.0, now));
-                while (d.speeds.size() > SPEED_BUF) d.speeds.removeFirst();
-            }
+            d.speeds.addLast(new Sample(Math.max(dist, 0.0), now));
+            while (d.speeds.size() > SPEED_BUF) d.speeds.removeFirst();
         }
         d.lastLoc = to.clone();
 
@@ -95,7 +94,35 @@ public class InvMove extends Check {
         Player p = (Player) e.getWhoClicked();
         if (!eligible(p)) return;
 
-        if (!isRealItemInteraction(e)) return;
+        UUID id = p.getUniqueId();
+        Data d = map.computeIfAbsent(id, k -> new Data());
+        long now = System.currentTimeMillis();
+
+        boolean real = isRealItemInteraction(e);
+        if (!real) return;
+
+        boolean movingNow = isMovingNow(p, d, now);
+
+        if (detectOffhandFromInventory(p, e)) {
+            if (cooldown(id, now)) {
+                flag(p, "Offhand from inventory while interacting", "src=inventory click=" + e.getClick());
+            }
+            return;
+        }
+
+        if (mayEquipElytraClick(e)) {
+            boolean movingAtClick = movingNow;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!p.isOnline()) return;
+                ItemStack chest = p.getInventory().getChestplate();
+                if (isElytra(chest) && movingAtClick) {
+                    long t = System.currentTimeMillis();
+                    if (cooldown(id, t)) {
+                        flag(p, "Elytra equip while moving", "click=" + e.getClick());
+                    }
+                }
+            });
+        }
 
         evaluateInteraction(p);
     }
@@ -107,6 +134,26 @@ public class InvMove extends Check {
 
         Player p = (Player) e.getWhoClicked();
         if (!eligible(p)) return;
+
+        UUID id = p.getUniqueId();
+        Data d = map.computeIfAbsent(id, k -> new Data());
+        long now = System.currentTimeMillis();
+
+        boolean movingNow = isMovingNow(p, d, now);
+
+        if (mayEquipElytraDrag(e)) {
+            boolean movingAtDrag = movingNow;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!p.isOnline()) return;
+                ItemStack chest = p.getInventory().getChestplate();
+                if (isElytra(chest) && movingAtDrag) {
+                    long t = System.currentTimeMillis();
+                    if (cooldown(id, t)) {
+                        flag(p, "Elytra equip while moving", "drag");
+                    }
+                }
+            });
+        }
 
         evaluateInteraction(p);
     }
@@ -185,6 +232,13 @@ public class InvMove extends Check {
         return true;
     }
 
+    private boolean cooldown(UUID id, long now) {
+        Long lastFlag = lastFlagTimes.get(id);
+        if (lastFlag != null && now - lastFlag < FLAG_COOLDOWN_MS) return false;
+        lastFlagTimes.put(id, now);
+        return true;
+    }
+
     private void decayScore(Data d, long now) {
         long dt = now - d.lastScoreUpdate;
         if (dt <= 0) return;
@@ -239,6 +293,56 @@ public class InvMove extends Check {
                 getViolationLevel(player), reason + " - " + details);
         plugin.getAlertManager().sendAlert(alert);
         increaseViolationLevel(player);
+    }
+
+    private boolean isElytra(ItemStack it) {
+        return it != null && it.getType() == Material.ELYTRA;
+    }
+
+    private boolean isMovingNow(Player p, Data d, long now) {
+        double avg = averageRecentTickSpeed(d.speeds, now, CLICK_WINDOW_MS);
+        if (Double.isNaN(avg)) return false;
+        double thr = p.isOnGround() ? THRESH_GROUND_TICK : THRESH_AIR_TICK;
+        if (p.isSneaking()) thr = THRESH_SNEAK_TICK;
+        return avg > thr;
+    }
+
+    private boolean isPlayerInventoryClick(InventoryClickEvent e) {
+        return e.getClickedInventory() != null && e.getView().getBottomInventory().equals(e.getClickedInventory());
+    }
+
+    private boolean mayEquipElytraClick(InventoryClickEvent e) {
+        if (!isPlayerInventoryClick(e)) return false;
+        if (e.getSlotType() == InventoryType.SlotType.ARMOR) {
+            if (isElytra(e.getCursor()) || isElytra(e.getCurrentItem())) return true;
+        }
+        if ((e.getClick() == ClickType.SHIFT_LEFT || e.getClick() == ClickType.SHIFT_RIGHT) && isElytra(e.getCurrentItem())) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean mayEquipElytraDrag(InventoryDragEvent e) {
+        InventoryView view = e.getView();
+        boolean hasElytraInNew = e.getNewItems().values().stream().anyMatch(this::isElytra);
+        if (!hasElytraInNew && !isElytra(e.getOldCursor())) return false;
+        for (int raw : e.getRawSlots()) {
+            if (view.getSlotType(raw) == InventoryType.SlotType.ARMOR) return true;
+        }
+        return false;
+    }
+
+    private boolean detectOffhandFromInventory(Player p, InventoryClickEvent e) {
+        if (!isPlayerInventoryClick(e)) return false;
+        if (e.getClick() != ClickType.SWAP_OFFHAND) return false;
+        InventoryType.SlotType t = e.getSlotType();
+        if (t == InventoryType.SlotType.CONTAINER) {
+            return true;
+        }
+        if (t == InventoryType.SlotType.QUICKBAR) {
+            return false;
+        }
+        return false;
     }
 
     @Override
