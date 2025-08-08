@@ -60,3 +60,5 @@ checks:
       ban:
         enabled: true
         threshold: 10
+
+...
