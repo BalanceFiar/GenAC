@@ -79,6 +79,18 @@ checks:
         enabled: true
         threshold: 10
         duration: 3600
+  wallinteract:
+          enabled: true
+          experimental: false
+          punishment:
+            kick:
+              enabled: true
+              threshold: 5
+            ban:
+              enabled: true
+              threshold: 10
+              duration: 3600
+
 
 punishments:
   kick-message: "§cYou have been kicked for suspicious activity: {reason} ({violations} violations)"

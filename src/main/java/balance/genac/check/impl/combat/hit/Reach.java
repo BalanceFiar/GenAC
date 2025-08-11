@@ -33,7 +33,7 @@ public class Reach extends Check {
     private static final double CREATIVE_REACH = 5.0;
     private static final double THRESHOLD = 0.0005;
     private static final double MOVEMENT_THRESHOLD = 0.03;
-    private static final double MOVEMENT_REACH_BONUS = 0.25;
+    private static final double MOVEMENT_REACH_BONUS = 0.3;
 
     private final Map<UUID, AttackData> recentAttacks = new HashMap<>();
     private final Map<UUID, Double> cancelBuffer = new HashMap<>();
