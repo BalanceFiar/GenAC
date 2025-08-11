@@ -2,7 +2,7 @@ name: GenAC
 version: '1.2'
 main: balance.genac.GenAC
 api-version: 1.16
-authors: [YourName]
+author: Balance
 description: Advanced Anti-Cheat Plugin
 
 commands:
