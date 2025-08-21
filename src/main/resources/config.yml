@@ -6,19 +6,8 @@ alerts:
   staff-alerts: true
   console-alerts: true
   webhook-url: ""
-
+#cancel = flag
 checks:
-  baritone:
-    enabled: true
-    experimental: true
-    punishment:
-      kick:
-        enabled: false
-        threshold: 5
-      ban:
-        enabled: false
-        threshold: 10
-        duration: 1800
   invmove:
     enabled: true
     experimental: false
@@ -43,13 +32,25 @@ checks:
         threshold: 6
         duration: 1800
 
+  wallbuild:
+    enabled: true
+    experimental: false
+    punishment:
+      kick:
+        enabled: true
+        threshold: 3
+      ban:
+        enabled: true
+        threshold: 6
+        duration: 1800
+
   reach:
     enabled: true
     experimental: false
     cancel: true
     punishment:
       kick:
-        enabled: true
+        enabled: false
         threshold: 5
       ban:
         enabled: false
@@ -92,8 +93,13 @@ checks:
               duration: 3600
 
 
+
+
+
+
 punishments:
   kick-message: "§cYou have been kicked for suspicious activity: {reason} ({violations} violations)"
   ban-command: "tempban {player} {duration} Suspicious activity: {reason} ({violations} violations)"
 
 functions:
+

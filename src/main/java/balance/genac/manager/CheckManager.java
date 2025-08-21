@@ -8,6 +8,7 @@ import balance.genac.check.impl.combat.killaura.KillAuraRotationA;
 import balance.genac.check.impl.combat.killaura.KillAuraRotationB;
 import balance.genac.check.impl.combat.hit.WallHit;
 import balance.genac.check.impl.movement.InvMove;
+import balance.genac.check.impl.world.WallBuild;
 import balance.genac.check.impl.world.WallInteract;
 import org.bukkit.Bukkit;
 import org.bukkit.event.HandlerList;
@@ -27,6 +28,7 @@ public class CheckManager {
 
     public void loadChecks() {
         plugin.getLogger().info("Loading checks...");
+        registerCheck(new WallBuild(plugin));
         registerCheck(new WallInteract(plugin));
         registerCheck(new Reach(plugin));
         registerCheck(new InvMove(plugin));
