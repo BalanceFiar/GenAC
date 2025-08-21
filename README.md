@@ -5,8 +5,9 @@ Soon 1.21.4
 ---
 
 [![💾 Download](https://img.shields.io/badge/💾_Download-GenAC.jar-brightgreen?style=for-the-badge)](https://github.com/BalanceFiar/GenAC/releases/latest)
-[![⚙️ Config](https://img.shields.io/badge/⚙️_Config-View-blue?style=for-the-badge)](https://github.com/BalanceFiar/GenAC/blob/master/src/main/resources/config.yml)
 [![💖 Donate](https://img.shields.io/badge/💖_Donate-Support-orange?style=for-the-badge)](https://www.donationalerts.com/r/balancefiar)
+[![✈️ Telegram](https://img.shields.io/badge/✈️_Telegram-Join-blue?style=for-the-badge)](https://t.me/genanticheat)
+
 
 ---
 
@@ -29,29 +30,24 @@ general:
 alerts:
   staff-alerts: true
   console-alerts: true
+  webhook-url: "" #soon
 
 checks:
-  wallhit:
+  killaurarotationa:
     enabled: true
+    experimental: false
     punishment:
       kick:
-        enabled: true
-        threshold: 3
-      ban:
         enabled: true
         threshold: 6
-        duration: 1800
-
-  reach:
-    enabled: true
-    cancel: true
-    punishment:
-      kick:
-        enabled: true
-        threshold: 5
+      ban:
+        enabled: false
+        threshold: 12
+        duration: 3600
 
   killaurarotationb:
     enabled: true
+    experimental: false
     punishment:
       kick:
         enabled: true
@@ -59,3 +55,27 @@ checks:
       ban:
         enabled: true
         threshold: 10
+        duration: 3600
+  wallinteract:
+          enabled: true
+          experimental: false
+          punishment:
+            kick:
+              enabled: true
+              threshold: 5
+            ban:
+              enabled: true
+              threshold: 10
+              duration: 3600
+
+
+
+
+
+
+punishments:
+  kick-message: "§cYou have been kicked for suspicious activity: {reason} ({violations} violations)"
+  ban-command: "tempban {player} {duration} Suspicious activity: {reason} ({violations} violations)"
+
+functions:
+
