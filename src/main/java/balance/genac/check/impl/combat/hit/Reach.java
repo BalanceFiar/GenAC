@@ -6,6 +6,7 @@ import balance.genac.alert.AlertType;
 import balance.genac.check.Check;
 import balance.genac.check.CheckInfo;
 import balance.genac.check.CheckType;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.*;
@@ -25,7 +26,24 @@ import java.util.*;
 public class Reach extends Check {
 
     private static final Set<EntityType> BLACKLISTED = new HashSet<>(Arrays.asList(
-            EntityType.BOAT,
+            EntityType.OAK_BOAT,
+            EntityType.SPRUCE_BOAT,
+            EntityType.BIRCH_BOAT,
+            EntityType.JUNGLE_BOAT,
+            EntityType.ACACIA_BOAT,
+            EntityType.DARK_OAK_BOAT,
+            EntityType.MANGROVE_BOAT,
+            EntityType.BAMBOO_RAFT,
+            EntityType.CHERRY_BOAT,
+            EntityType.OAK_CHEST_BOAT,
+            EntityType.SPRUCE_CHEST_BOAT,
+            EntityType.BIRCH_CHEST_BOAT,
+            EntityType.JUNGLE_CHEST_BOAT,
+            EntityType.ACACIA_CHEST_BOAT,
+            EntityType.DARK_OAK_CHEST_BOAT,
+            EntityType.MANGROVE_CHEST_BOAT,
+            EntityType.BAMBOO_CHEST_RAFT,
+            EntityType.CHERRY_CHEST_BOAT,
             EntityType.SHULKER
     ));
 
@@ -52,7 +70,7 @@ public class Reach extends Check {
         Entity target = event.getEntity();
 
         if (player.hasPermission("genac.bypass")) return;
-        if (player.getGameMode() == org.bukkit.GameMode.SPECTATOR) return;
+        if (player.getGameMode() == GameMode.SPECTATOR) return;
         if (player.isInsideVehicle()) return;
         if (target.isInsideVehicle()) return;
 
@@ -249,7 +267,7 @@ public class Reach extends Check {
     }
 
     private BoundingBox getTargetBoundingBox(Entity target) {
-        if (target.getType() == EntityType.ENDER_CRYSTAL) {
+        if (target.getType() == EntityType.END_CRYSTAL) {
             Location loc = target.getLocation();
             return new BoundingBox(
                     loc.getX() - 1, loc.getY(), loc.getZ() - 1,
@@ -272,7 +290,7 @@ public class Reach extends Check {
     }
 
     private double getMaxReach(Player player) {
-        if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) {
+        if (player.getGameMode() == GameMode.CREATIVE) {
             return CREATIVE_REACH;
         }
         return DEFAULT_REACH;
@@ -288,7 +306,7 @@ public class Reach extends Check {
 
     private boolean isValidTarget(Entity entity) {
         if (entity instanceof LivingEntity) return true;
-        if (entity.getType() == EntityType.ENDER_CRYSTAL) return true;
+        if (entity.getType() == EntityType.END_CRYSTAL) return true;
         return false;
     }
 

@@ -1,7 +1,7 @@
 name: GenAC
-version: '1.3'
+version: '2'
 main: balance.genac.GenAC
-api-version: 1.16
+api-version: 1.21
 author: Balance
 description: Advanced Anti-Cheat Plugin
 

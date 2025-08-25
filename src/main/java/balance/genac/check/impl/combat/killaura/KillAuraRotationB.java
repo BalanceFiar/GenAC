@@ -21,7 +21,7 @@ public class KillAuraRotationB extends Check {
     private final Map<UUID, Long> lastFlag = new HashMap<>();
 
     private static final int BATCH_SIZE = 5;
-    private static final float JERK_THRESHOLD = 75.0f;
+    private static final float JERK_THRESHOLD = 90.0f;
     private static final int MIN_VIOLATIONS = 3;
     private static final long FLAG_COOLDOWN = 3000L;
 

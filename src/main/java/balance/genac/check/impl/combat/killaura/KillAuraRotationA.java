@@ -62,7 +62,7 @@ public class KillAuraRotationA extends Check {
     private static final double SCORE_TO_FLAG = 7.0;
     private static final double SCORE_CLAMP_MAX = 20.0;
 
-    private static final int BATCH_MIN_HITS = 10;
+    private static final int BATCH_MIN_HITS = 5;
     private static final long BATCH_WINDOW_MAX_MS = 0;
 
     public KillAuraRotationA(GenAC plugin) {
