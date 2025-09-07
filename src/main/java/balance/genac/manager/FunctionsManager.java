@@ -1,7 +1,8 @@
 package balance.genac.manager;
 
 import balance.genac.GenAC;
-import balance.genac.functions.Function;
+import balance.genac.function.Function;
+import balance.genac.function.MetaCancel;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -19,16 +20,26 @@ public class FunctionsManager {
 
     public void loadFunctions() {
         plugin.getLogger().info("Loading functions...");
+
+        if (plugin.getConfig().getBoolean("functions.metacancel.enabled", true)) {
+            registerFunction(new MetaCancel(plugin));
+        }
+        
         plugin.getLogger().info("Loaded " + functions.size() + " functions");
     }
 
     private void registerFunction(Function function) {
-        functions.add(function);
-        plugin.getServer().getPluginManager().registerEvents(function, plugin);
-        plugin.getLogger().info("Registered function: " + function.getName());
+        if (function.isEnabled()) {
+            functions.add(function);
+            function.onEnable();
+            plugin.getLogger().info("Registered function: " + function.getName());
+        }
     }
 
     public void unloadFunctions() {
+        for (Function function : functions) {
+            function.onDisable();
+        }
         functions.clear();
         plugin.getLogger().info("Unloaded all functions");
     }
@@ -48,5 +59,10 @@ public class FunctionsManager {
                 .filter(function -> function.getName().equalsIgnoreCase(name))
                 .findFirst()
                 .orElse(null);
+    }
+    
+    public MetaCancel getMetaCancel() {
+        Function function = getFunction("MetaCancel");
+        return function instanceof MetaCancel ? (MetaCancel) function : null;
     }
 }

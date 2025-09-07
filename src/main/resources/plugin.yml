@@ -1,9 +1,10 @@
 name: GenAC
-version: '2'
+version: '2.1'
 main: balance.genac.GenAC
-api-version: 1.21
+api-version: 1.16
 author: Balance
-description: Advanced Anti-Cheat Plugin
+description: Advanced Anti-Cheat Plugin for Minecraft 1.16.5-1.21.4
+depend: [ProtocolLib]
 
 commands:
   genac:

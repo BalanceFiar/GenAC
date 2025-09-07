@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class AlertManager {
 
     private final GenAC plugin;
-    private final List<UUID> alertsEnabled;
+    private final List<UUID> alertsDisabled;
     private final ConcurrentLinkedQueue<Alert> alertQueue;
     private final List<Alert> recentAlerts;
     private final int maxRecentAlerts;
@@ -24,7 +24,7 @@ public class AlertManager {
 
     public AlertManager(GenAC plugin) {
         this.plugin = plugin;
-        this.alertsEnabled = new ArrayList<>();
+        this.alertsDisabled = new ArrayList<>();
         this.alertQueue = new ConcurrentLinkedQueue<>();
         this.recentAlerts = new ArrayList<>();
         this.maxRecentAlerts = 100;
@@ -79,17 +79,17 @@ public class AlertManager {
 
     public void toggleAlerts(Player player) {
         UUID uuid = player.getUniqueId();
-        if (alertsEnabled.contains(uuid)) {
-            alertsEnabled.remove(uuid);
-            player.sendMessage(ChatColor.RED + "Alerts disabled!");
-        } else {
-            alertsEnabled.add(uuid);
+        if (alertsDisabled.contains(uuid)) {
+            alertsDisabled.remove(uuid);
             player.sendMessage(ChatColor.GREEN + "Alerts enabled!");
+        } else {
+            alertsDisabled.add(uuid);
+            player.sendMessage(ChatColor.RED + "Alerts disabled!");
         }
     }
 
     public boolean hasAlertsEnabled(Player player) {
-        return alertsEnabled.contains(player.getUniqueId()) || !alertsEnabled.contains(player.getUniqueId());
+        return !alertsDisabled.contains(player.getUniqueId());
     }
 
     public List<Alert> getRecentAlerts() {

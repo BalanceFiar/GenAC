@@ -6,6 +6,7 @@ import balance.genac.manager.CheckManager;
 import balance.genac.manager.ConfigManager;
 import balance.genac.manager.FunctionsManager;
 import balance.genac.manager.PunishmentManager;
+import balance.genac.utils.VersionUtils;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -23,6 +24,18 @@ public final class GenAC extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
+        if (!VersionUtils.isSupportedVersion()) {
+            getLogger().severe("===========================================");
+            getLogger().severe("UNSUPPORTED SERVER VERSION DETECTED!");
+            getLogger().severe("Current version: " + VersionUtils.getFormattedVersion());
+            getLogger().severe("Supported versions: 1.16.5 - 1.21.4");
+            getLogger().severe("Plugin will be disabled for safety.");
+            getLogger().severe("===========================================");
+            Bukkit.getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        getLogger().info("Running on Minecraft " + VersionUtils.getFormattedVersion() + " - Compatible!");
         Bukkit.getConsoleSender().sendMessage(ChatColor.GREEN + "[GenAC] Plugin has been enabled!");
 
         this.configManager = new ConfigManager(this);

@@ -2,17 +2,15 @@ package balance.genac.alert;
 
 public enum AlertType {
 
-    LOW("Low", "§a"),
-
-    MEDIUM("Medium", "§e"),
+    COMBAT("Combat", "§a"),
 
     HIGH("High", "§c"),
 
-    CRITICAL("Critical", "§4"),
+    MOVEMENT("Movement", "§4"),
 
-    EXPERIMENTAL("Experimental", "§d"),
+    EXPERIMENTAL("Experimental", "§d");
 
-    DEBUG("Debug", "§7");
+
 
     private final String displayName;
     private final String colorCode;

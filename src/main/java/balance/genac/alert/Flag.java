@@ -35,7 +35,7 @@ public class Flag implements Listener {
 
     public void handleAlert(Alert alert) {
         if (alert == null) return;
-        if (alert.getType() != AlertType.CRITICAL) return;
+        if (alert.getType() != AlertType.MOVEMENT) return;
         Player p = alert.getPlayer();
         if (p == null || !p.isOnline()) return;
 

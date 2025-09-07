@@ -3,10 +3,12 @@ general:
   language: "en"
 
 alerts:
+  enabled: true
   staff-alerts: true
   console-alerts: true
   webhook-url: ""
-#cancel = flag
+  alert-format: "&8[&bGenAC&8] &f{player} &8failed &f{check} &8(&f{vl}&8) &8- &f{details}"
+
 checks:
   invmove:
     enabled: true
@@ -80,26 +82,71 @@ checks:
         enabled: true
         threshold: 10
         duration: 3600
+
+  killaurarotationc:
+    enabled: true
+    experimental: false
+    punishment:
+      kick:
+        enabled: true
+        threshold: 5
+      ban:
+        enabled: true
+        threshold: 10
+        duration: 3600
+
+  killaurarotationd:
+    enabled: true
+    experimental: false
+    punishment:
+      kick:
+        enabled: true
+        threshold: 5
+      ban:
+        enabled: true
+        threshold: 10
+        duration: 3600
+
   wallinteract:
-          enabled: true
-          experimental: false
-          punishment:
-            kick:
-              enabled: true
-              threshold: 5
-            ban:
-              enabled: true
-              threshold: 10
-              duration: 3600
+    enabled: true
+    experimental: false
+    punishment:
+      kick:
+        enabled: true
+        threshold: 5
+      ban:
+        enabled: true
+        threshold: 10
+        duration: 3600
 
+  sprintb:
+    enabled: true
+    max_violations: 3
+    cancel: false
+    min_sprint_interval: 100
+    max_sprint_rate: 8
+    false_positive_protection: true
 
+  packettimer:
+    enabled: true
+    experimental: false
+    punishment:
+      kick:
+        enabled: true
+        threshold: 5
+      ban:
+        enabled: true
+        threshold: 10
+        duration: 3600
 
-
-
-
-punishments:
-  kick-message: "§cYou have been kicked for suspicious activity: {reason} ({violations} violations)"
-  ban-command: "tempban {player} {duration} Suspicious activity: {reason} ({violations} violations)"
-
-functions:
-
+  negativetimer:
+    enabled: true
+    experimental: false
+    punishment:
+      kick:
+        enabled: true
+        threshold: 5
+      ban:
+        enabled: true
+        threshold: 10
+        duration: 3600

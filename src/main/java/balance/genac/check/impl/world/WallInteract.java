@@ -331,7 +331,7 @@ public class WallInteract extends Check {
         Alert alert = new Alert(
                 player,
                 "WallInteract",
-                AlertType.MEDIUM,
+                AlertType.HIGH,
                 getViolationLevel(player),
                 "Interacting through wall | " + details
         );

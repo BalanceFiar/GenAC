@@ -6,6 +6,7 @@ import balance.genac.alert.AlertType;
 import balance.genac.check.Check;
 import balance.genac.check.CheckInfo;
 import balance.genac.check.CheckType;
+import balance.genac.utils.VersionUtils;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -25,27 +26,7 @@ import java.util.*;
 )
 public class Reach extends Check {
 
-    private static final Set<EntityType> BLACKLISTED = new HashSet<>(Arrays.asList(
-            EntityType.OAK_BOAT,
-            EntityType.SPRUCE_BOAT,
-            EntityType.BIRCH_BOAT,
-            EntityType.JUNGLE_BOAT,
-            EntityType.ACACIA_BOAT,
-            EntityType.DARK_OAK_BOAT,
-            EntityType.MANGROVE_BOAT,
-            EntityType.BAMBOO_RAFT,
-            EntityType.CHERRY_BOAT,
-            EntityType.OAK_CHEST_BOAT,
-            EntityType.SPRUCE_CHEST_BOAT,
-            EntityType.BIRCH_CHEST_BOAT,
-            EntityType.JUNGLE_CHEST_BOAT,
-            EntityType.ACACIA_CHEST_BOAT,
-            EntityType.DARK_OAK_CHEST_BOAT,
-            EntityType.MANGROVE_CHEST_BOAT,
-            EntityType.BAMBOO_CHEST_RAFT,
-            EntityType.CHERRY_CHEST_BOAT,
-            EntityType.SHULKER
-    ));
+    private static final Set<EntityType> BLACKLISTED = initializeBlacklist();
 
     private static final double DEFAULT_REACH = 3.0;
     private static final double CREATIVE_REACH = 5.0;
@@ -59,6 +40,17 @@ public class Reach extends Check {
 
     public Reach(GenAC plugin) {
         super(plugin);
+    }
+
+
+    private static Set<EntityType> initializeBlacklist() {
+        Set<EntityType> blacklisted = new HashSet<>();
+
+        blacklisted.addAll(VersionUtils.getCompatibleBoatTypes());
+
+        blacklisted.add(EntityType.SHULKER);
+        
+        return blacklisted;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -267,7 +259,7 @@ public class Reach extends Check {
     }
 
     private BoundingBox getTargetBoundingBox(Entity target) {
-        if (target.getType() == EntityType.END_CRYSTAL) {
+        if (target.getType() == EntityType.ENDER_CRYSTAL) {
             Location loc = target.getLocation();
             return new BoundingBox(
                     loc.getX() - 1, loc.getY(), loc.getZ() - 1,
@@ -306,7 +298,7 @@ public class Reach extends Check {
 
     private boolean isValidTarget(Entity entity) {
         if (entity instanceof LivingEntity) return true;
-        if (entity.getType() == EntityType.END_CRYSTAL) return true;
+        if (entity.getType() == EntityType.ENDER_CRYSTAL) return true;
         return false;
     }
 

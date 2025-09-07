@@ -6,6 +6,7 @@ import balance.genac.alert.AlertType;
 import balance.genac.check.Check;
 import balance.genac.check.CheckInfo;
 import balance.genac.check.CheckType;
+import balance.genac.utils.VersionUtils;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -265,7 +266,9 @@ public class InvMove extends Check {
     private boolean isOnIceOrSlime(Player p) {
         Location loc = p.getLocation();
         Material m = loc.clone().subtract(0, 0.1, 0).getBlock().getType();
-        return m == Material.ICE || m == Material.PACKED_ICE || m == Material.BLUE_ICE || m == Material.SLIME_BLOCK || m == Material.FROSTED_ICE;
+
+        Set<Material> iceTypes = VersionUtils.getCompatibleIceTypes();
+        return iceTypes.contains(m) || m == Material.SLIME_BLOCK;
     }
 
     private boolean isInLiquid(Player p) {
@@ -289,7 +292,7 @@ public class InvMove extends Check {
     }
 
     private void flag(Player player, String reason, String details) {
-        Alert alert = new Alert(player, "InvMove", AlertType.CRITICAL,
+        Alert alert = new Alert(player, "InvMove", AlertType.MOVEMENT,
                 getViolationLevel(player), reason + " - " + details);
         plugin.getAlertManager().sendAlert(alert);
         increaseViolationLevel(player);

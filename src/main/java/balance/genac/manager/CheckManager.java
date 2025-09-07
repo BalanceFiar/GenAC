@@ -2,12 +2,15 @@ package balance.genac.manager;
 
 import balance.genac.GenAC;
 import balance.genac.check.Check;
-
-import balance.genac.check.impl.combat.hit.Reach;
+import balance.genac.check.impl.combat.hit.*;
 import balance.genac.check.impl.combat.killaura.KillAuraRotationA;
 import balance.genac.check.impl.combat.killaura.KillAuraRotationB;
-import balance.genac.check.impl.combat.hit.WallHit;
+import balance.genac.check.impl.combat.killaura.KillAuraRotationC;
+import balance.genac.check.impl.combat.killaura.KillAuraRotationD;
 import balance.genac.check.impl.movement.InvMove;
+import balance.genac.check.impl.movement.SprintB;
+import balance.genac.check.impl.packet.NegativeTimer;
+import balance.genac.check.impl.packet.PacketTimer;
 import balance.genac.check.impl.world.WallBuild;
 import balance.genac.check.impl.world.WallInteract;
 import org.bukkit.Bukkit;
@@ -28,13 +31,24 @@ public class CheckManager {
 
     public void loadChecks() {
         plugin.getLogger().info("Loading checks...");
-        registerCheck(new WallBuild(plugin));
-        registerCheck(new WallInteract(plugin));
+
         registerCheck(new Reach(plugin));
-        registerCheck(new InvMove(plugin));
         registerCheck(new WallHit(plugin));
         registerCheck(new KillAuraRotationA(plugin));
         registerCheck(new KillAuraRotationB(plugin));
+        registerCheck(new KillAuraRotationC(plugin));
+        registerCheck(new KillAuraRotationD(plugin));
+
+        registerCheck(new InvMove(plugin));
+        registerCheck(new SprintB(plugin));
+
+
+        registerCheck(new WallBuild(plugin));
+        registerCheck(new WallInteract(plugin));
+
+
+        registerCheck(new PacketTimer(plugin));
+        registerCheck(new NegativeTimer(plugin));
 
         plugin.getLogger().info("Loaded " + loadedChecks.size() + " checks successfully!");
     }
