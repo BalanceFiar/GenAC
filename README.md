@@ -1,6 +1,6 @@
-# 🛡️ GenAC — AntiCheat for Minecraft 1.21.4
+# 🛡️ GenAC — AntiCheat for Minecraft 1.16.5-1.21.4
 
-GenAC is an anti-cheat plugin for Minecraft 1.21.4 servers.  
+GenAC is an anti-cheat plugin for Minecraft 1.16.5-1.21.4 servers.  
 ---
 
 [![💾 Download](https://img.shields.io/badge/💾_Download-GenAC.jar-brightgreen?style=for-the-badge)](https://github.com/BalanceFiar/GenAC/releases/latest)
